@@ -2,13 +2,12 @@
 namespace stepDebugger {
     let stepSignal = false;
 
-    // チャットで "n" と打ったら次へ進むシグナルを立てる
     player.onChat("n", function () {
         stepSignal = true;
     });
 
     /**
-     * 次へ進む（チャットに「n」）まで処理を一時停止します
+     * チャットで「n」と打つまで処理を一時停止します
      * @param label ステップ番号, eg: 1
      */
     //% block="ステップ待機 [ステップ %label]"
@@ -33,5 +32,29 @@ namespace stepDebugger {
     //% weight=80
     export function slowStep(ms: number): void {
         loops.pause(ms);
+    }
+
+    /**
+     * エージェントのアニメーションを待たずに高速移動させます
+     * @param blocks 移動歩数, eg: 1
+     */
+    //% block="エージェントを前に高速移動 [歩数 %blocks]"
+    //% weight=70
+    export function fastMoveForward(blocks: number): void {
+        for (let i = 0; i < blocks; i++) {
+            // 通常の agent.move() よりウェイトを最小限に抑える呼び出し
+            player.execute(`execute as @c at @s run tp @s ^ ^ ^1`);
+            loops.pause(20); // 1tick分の最小ウェイト
+        }
+    }
+
+    /**
+     * エージェントを瞬時に指定した歩数進めます（テレポート移動）
+     * @param blocks 移動歩数, eg: 1
+     */
+    //% block="エージェントを瞬時に [歩数 %blocks] 歩 前へテレポート"
+    //% weight=60
+    export function instantMoveForward(blocks: number): void {
+        player.execute(`execute as @c at @s run tp @s ^ ^ ^${blocks}`);
     }
 }
