@@ -1,7 +1,9 @@
 //% weight=100 color="#27AE60" icon="\uf04e" block="ステップ実行"
 namespace stepDebugger {
     let stepSignal = false;
+    let agentSpeedDelay = 50; // 高速時のウェイト（ミリ秒）
 
+    // チャットで "n" と打つと1ステップ進む
     player.onChat("n", function () {
         stepSignal = true;
     });
@@ -11,7 +13,7 @@ namespace stepDebugger {
      * @param label ステップ番号, eg: 1
      */
     //% block="ステップ待機 [ステップ %label]"
-    //% weight=90
+    //% weight=100
     export function waitStep(label: number): void {
         player.say("§e[一時停止] ステップ " + label + " (チャットに「n」で次へ)");
         stepSignal = false;
@@ -29,32 +31,31 @@ namespace stepDebugger {
      * @param ms 待機時間（ミリ秒）, eg: 1000
      */
     //% block="スロー実行 [間隔 %ms ミリ秒]"
-    //% weight=80
+    //% weight=90
     export function slowStep(ms: number): void {
         loops.pause(ms);
     }
 
     /**
-     * エージェントのアニメーションを待たずに高速移動させます
-     * @param blocks 移動歩数, eg: 1
+     * エージェントを指定した歩数分、高速に前進させます
+     * @param steps 前進する歩数, eg: 1
      */
-    //% block="エージェントを前に高速移動 [歩数 %blocks]"
-    //% weight=70
-    export function fastMoveForward(blocks: number): void {
-        for (let i = 0; i < blocks; i++) {
-            // 通常の agent.move() よりウェイトを最小限に抑える呼び出し
-            player.execute(`execute as @c at @s run tp @s ^ ^ ^1`);
-            loops.pause(20); // 1tick分の最小ウェイト
+    //% block="エージェントを高速に前に進める [歩数 %steps]"
+    //% weight=80
+    export function fastMoveForward(steps: number): void {
+        for (let i = 0; i < steps; i++) {
+            agent.move(SixDirection.Forward, 1);
+            loops.pause(agentSpeedDelay);
         }
     }
 
     /**
-     * エージェントを瞬時に指定した歩数進めます（テレポート移動）
-     * @param blocks 移動歩数, eg: 1
+     * 高速実行時の動作間隔（ミリ秒）を設定します（標準は50ms）
+     * @param delay 動作間隔（ミリ秒）, eg: 50
      */
-    //% block="エージェントを瞬時に [歩数 %blocks] 歩 前へテレポート"
-    //% weight=60
-    export function instantMoveForward(blocks: number): void {
-        player.execute(`execute as @c at @s run tp @s ^ ^ ^${blocks}`);
+    //% block="エージェントの速度を設定 [間隔 %delay ミリ秒]"
+    //% weight=70
+    export function setAgentSpeed(delay: number): void {
+        agentSpeedDelay = delay;
     }
 }
