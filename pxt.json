@@ -1,6 +1,6 @@
 {
     "name": "minecraft-step-controller",
-    "version": "0.0.3",
+    "version": "1.0.0",
     "description": "Step debugger for Minecraft MakeCode",
     "dependencies": {
         "core": "*"
@@ -10,10 +10,8 @@
         "README.md"
     ],
     "testFiles": [],
-    "targetVersions": {
-        "target": "1.0.0"
-    },
     "supportedTargets": [
         "minecraft"
-    ]
+    ],
+    "public": true
 }
