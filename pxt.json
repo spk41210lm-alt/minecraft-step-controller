@@ -1,12 +1,19 @@
 {
     "name": "minecraft-step-controller",
-    "version": "0.0.1",
-    "description": "Step debugger using a stick controller for Minecraft MakeCode",
+    "version": "0.0.3",
+    "description": "Step debugger for Minecraft MakeCode",
     "dependencies": {
-        "core": "*",
-        "minecraft": "*"
+        "core": "*"
     },
     "files": [
-        "main.ts"
+        "main.ts",
+        "README.md"
+    ],
+    "testFiles": [],
+    "targetVersions": {
+        "target": "1.0.0"
+    },
+    "supportedTargets": [
+        "minecraft"
     ]
 }
