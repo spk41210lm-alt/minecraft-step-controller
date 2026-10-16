@@ -2,8 +2,7 @@
 namespace stepDebugger {
     let stepSignal = false;
 
-    // 初期状態はマインクラフト標準の南(South=1)または東(East=0)
-    // 0: East, 1: South, 2: West, 3: North
+    // 0: East (+X), 1: South (+Z), 2: West (-X), 3: North (-Z)
     let currentDir = 1; // デフォルト：南
 
     player.onChat("n", function () {
@@ -38,9 +37,16 @@ namespace stepDebugger {
         loops.pause(ms);
     }
 
+    function getCompassEnum(): CompassDirection {
+        if (currentDir === 0) return CompassDirection.East;
+        if (currentDir === 1) return CompassDirection.South;
+        if (currentDir === 2) return CompassDirection.West;
+        return CompassDirection.North;
+    }
+
     /**
-     * エージェントの現在の向きを設定します
-     * @param dir 向いている方角
+     * エージェントの向きを初期設定します
+     * @param dir 向かせる方角
      */
     //% block="エージェントの向きを設定 [方角 %dir]"
     //% weight=90
@@ -50,32 +56,30 @@ namespace stepDebugger {
         else if (dir === CompassDirection.West) currentDir = 2;
         else if (dir === CompassDirection.North) currentDir = 3;
 
-        // 向きを直接同期
         agent.teleport(agent.getPosition(), dir);
     }
 
     /**
-     * エージェントを旋回させます（向きデータも更新）
-     * @param turnDir 回転方向
+     * エージェントのアニメーションを待たずに瞬時に旋回（方向転換）させます
+     * @param turnDir 回転方向, eg: TurnDirection.Left
      */
-    //% block="エージェントを旋回 %turnDir"
+    //% block="エージェントを瞬時に旋回 %turnDir"
     //% weight=85
-    export function turnAgent(turnDir: TurnDirection): void {
+    export function fastTurn(turnDir: TurnDirection): void {
         if (turnDir === TurnDirection.Left) {
-            currentDir = (currentDir + 3) % 4; // -1相当
-            agent.turn(TurnDirection.Left);
+            currentDir = (currentDir + 3) % 4; // 左回転 (-1)
         } else {
-            currentDir = (currentDir + 1) % 4; // +1相当
-            agent.turn(TurnDirection.Right);
+            currentDir = (currentDir + 1) % 4; // 右回転 (+1)
         }
+        // アニメーション待機のある agent.turn() は使わず、瞬時に向きのみテレポート更新
+        agent.teleport(agent.getPosition(), getCompassEnum());
     }
 
-    // 内部関数：エージェントの向きに基づいた前・右・上のオフセット計算
+    // 内部関数：エージェントの向きに応じた相対オフセット計算
     function getFacingOffset(forward: number, right: number, up: number): Position {
         let dx = 0;
         let dz = 0;
 
-        // 0: East (+X), 1: South (+Z), 2: West (-X), 3: North (-Z)
         if (currentDir === 0) { // 東向き
             dx = forward;
             dz = right;
@@ -94,16 +98,31 @@ namespace stepDebugger {
     }
 
     /**
-     * エージェントの向いている「前」へ瞬時に移動させます
-     * @param steps 前進歩数, eg: 1
+     * エージェントを指定した方向へ瞬時に移動させます（アニメーションなし）
+     * @param dir 移動方向, eg: SixDirection.Forward
+     * @param steps 歩数, eg: 1
      */
-    //% block="エージェントを前に高速移動 [歩数 %steps]"
+    //% block="エージェントを %dir へ高速移動 [歩数 %steps]"
     //% weight=80
-    export function fastMoveForward(steps: number): void {
-        let offset = getFacingOffset(steps, 0, 0);
+    export function fastMoveDirection(dir: SixDirection, steps: number): void {
+        let offset: Position;
+
+        if (dir === SixDirection.Forward) {
+            offset = getFacingOffset(steps, 0, 0);
+        } else if (dir === SixDirection.Back) {
+            offset = getFacingOffset(-steps, 0, 0);
+        } else if (dir === SixDirection.Left) {
+            offset = getFacingOffset(0, -steps, 0);
+        } else if (dir === SixDirection.Right) {
+            offset = getFacingOffset(0, steps, 0);
+        } else if (dir === SixDirection.Up) {
+            offset = pos(0, steps, 0);
+        } else { // Down
+            offset = pos(0, -steps, 0);
+        }
+
         let nextPos = positions.add(agent.getPosition(), offset);
-        // 方角引数を省略し、エージェント自身の現在の向きを維持
-        agent.teleport(nextPos, currentDir === 0 ? CompassDirection.East : (currentDir === 1 ? CompassDirection.South : (currentDir === 2 ? CompassDirection.West : CompassDirection.North)));
+        agent.teleport(nextPos, getCompassEnum());
     }
 
     /**
