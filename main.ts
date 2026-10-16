@@ -2,9 +2,9 @@
 namespace stepDebugger {
     let stepSignal = false;
 
-    // エージェントの現在の向き（デフォルト: 東=0, 南=1, 西=2, 北=3）
-    // Minecraftの標準仕様に合わせて管理
-    let agentHeading = CompassDirection.East;
+    // 初期状態はマインクラフト標準の南(South=1)または東(East=0)
+    // 0: East, 1: South, 2: West, 3: North
+    let currentDir = 1; // デフォルト：南
 
     player.onChat("n", function () {
         stepSignal = true;
@@ -39,113 +39,98 @@ namespace stepDebugger {
     }
 
     /**
-     * エージェントの向きを初期設定します
-     * @param dir 向かせる方角, eg: CompassDirection.East
+     * エージェントの現在の向きを設定します
+     * @param dir 向いている方角
      */
-    //% block="エージェントの向きを初期化 [方角 %dir]"
+    //% block="エージェントの向きを設定 [方角 %dir]"
     //% weight=90
-    export function setHeading(dir: CompassDirection): void {
-        agentHeading = dir;
-        agent.teleport(agent.getPosition(), agentHeading);
+    export function setDirection(dir: CompassDirection): void {
+        if (dir === CompassDirection.East) currentDir = 0;
+        else if (dir === CompassDirection.South) currentDir = 1;
+        else if (dir === CompassDirection.West) currentDir = 2;
+        else if (dir === CompassDirection.North) currentDir = 3;
+
+        // 向きを直接同期
+        agent.teleport(agent.getPosition(), dir);
     }
 
     /**
-     * エージェントを高速に旋回させます
-     * @param turnDir 回転方向, eg: TurnDirection.Left
+     * エージェントを旋回させます（向きデータも更新）
+     * @param turnDir 回転方向
      */
-    //% block="エージェントを瞬時に旋回 %turnDir"
+    //% block="エージェントを旋回 %turnDir"
     //% weight=85
-    export function instantTurn(turnDir: TurnDirection): void {
-        // 北(3) -> 東(0) -> 南(1) -> 西(2)
+    export function turnAgent(turnDir: TurnDirection): void {
         if (turnDir === TurnDirection.Left) {
-            if (agentHeading === CompassDirection.North) agentHeading = CompassDirection.West;
-            else if (agentHeading === CompassDirection.West) agentHeading = CompassDirection.South;
-            else if (agentHeading === CompassDirection.South) agentHeading = CompassDirection.East;
-            else agentHeading = CompassDirection.North;
+            currentDir = (currentDir + 3) % 4; // -1相当
+            agent.turn(TurnDirection.Left);
         } else {
-            if (agentHeading === CompassDirection.North) agentHeading = CompassDirection.East;
-            else if (agentHeading === CompassDirection.East) agentHeading = CompassDirection.South;
-            else if (agentHeading === CompassDirection.South) agentHeading = CompassDirection.West;
-            else agentHeading = CompassDirection.North;
+            currentDir = (currentDir + 1) % 4; // +1相当
+            agent.turn(TurnDirection.Right);
         }
-        agent.teleport(agent.getPosition(), agentHeading);
     }
 
-    // 内部関数：エージェントの向いている方向に基づいた相対オフセットを計算
-    function getOffsetPosition(basePos: Position, forwardSteps: number, rightSteps: number, upSteps: number): Position {
+    // 内部関数：エージェントの向きに基づいた前・右・上のオフセット計算
+    function getFacingOffset(forward: number, right: number, up: number): Position {
         let dx = 0;
         let dz = 0;
 
-        // 東(+X), 西(-X), 南(+Z), 北(-Z)
-        if (agentHeading === CompassDirection.East) {
-            dx = forwardSteps;
-            dz = rightSteps;
-        } else if (agentHeading === CompassDirection.West) {
-            dx = -forwardSteps;
-            dz = -rightSteps;
-        } else if (agentHeading === CompassDirection.South) {
-            dz = forwardSteps;
-            dx = -rightSteps;
-        } else if (agentHeading === CompassDirection.North) {
-            dz = -forwardSteps;
-            dx = rightSteps;
+        // 0: East (+X), 1: South (+Z), 2: West (-X), 3: North (-Z)
+        if (currentDir === 0) { // 東向き
+            dx = forward;
+            dz = right;
+        } else if (currentDir === 1) { // 南向き
+            dx = -right;
+            dz = forward;
+        } else if (currentDir === 2) { // 西向き
+            dx = -forward;
+            dz = -right;
+        } else if (currentDir === 3) { // 北向き
+            dx = right;
+            dz = -forward;
         }
 
-        return positions.add(basePos, pos(dx, upSteps, dz));
+        return pos(dx, up, dz);
     }
 
     /**
      * エージェントの向いている「前」へ瞬時に移動させます
      * @param steps 前進歩数, eg: 1
      */
-    //% block="エージェントを向いている前へ高速移動 [歩数 %steps]"
+    //% block="エージェントを前に高速移動 [歩数 %steps]"
     //% weight=80
-    export function instantMoveForward(steps: number): void {
-        let nextPos = getOffsetPosition(agent.getPosition(), steps, 0, 0);
-        agent.teleport(nextPos, agentHeading);
+    export function fastMoveForward(steps: number): void {
+        let offset = getFacingOffset(steps, 0, 0);
+        let nextPos = positions.add(agent.getPosition(), offset);
+        // 方角引数を省略し、エージェント自身の現在の向きを維持
+        agent.teleport(nextPos, currentDir === 0 ? CompassDirection.East : (currentDir === 1 ? CompassDirection.South : (currentDir === 2 ? CompassDirection.West : CompassDirection.North)));
     }
 
     /**
-     * エージェント基準の相対方向（前/後ろ/左/右/上/下）に瞬時にブロックを配置します
+     * エージェントから見た相対方向に瞬時にブロックを配置します
      * @param dir 設置方向, eg: SixDirection.Forward
      * @param block 設置するブロック, eg: Block.Stone
      */
-    //% block="エージェントから見て %dir に高速ブロック設置 %block"
+    //% block="エージェントの %dir に高速ブロック設置 %block"
     //% weight=75
-    export function instantPlaceRelative(dir: SixDirection, block: Block): void {
-        let agentPos = agent.getPosition();
-        let targetPos: Position;
+    export function fastPlaceBlock(dir: SixDirection, block: Block): void {
+        let offset: Position;
 
         if (dir === SixDirection.Forward) {
-            targetPos = getOffsetPosition(agentPos, 1, 0, 0);
+            offset = getFacingOffset(1, 0, 0);
         } else if (dir === SixDirection.Back) {
-            targetPos = getOffsetPosition(agentPos, -1, 0, 0);
+            offset = getFacingOffset(-1, 0, 0);
         } else if (dir === SixDirection.Left) {
-            targetPos = getOffsetPosition(agentPos, 0, -1, 0);
+            offset = getFacingOffset(0, -1, 0);
         } else if (dir === SixDirection.Right) {
-            targetPos = getOffsetPosition(agentPos, 0, 1, 0);
+            offset = getFacingOffset(0, 1, 0);
         } else if (dir === SixDirection.Up) {
-            targetPos = getOffsetPosition(agentPos, 0, 0, 1);
+            offset = pos(0, 1, 0);
         } else { // Down
-            targetPos = getOffsetPosition(agentPos, 0, 0, -1);
+            offset = pos(0, -1, 0);
         }
 
+        let targetPos = positions.add(agent.getPosition(), offset);
         blocks.place(block, targetPos);
-    }
-
-    /**
-     * 向いている前方に進みながら足元にブロックを高速で敷き詰めます
-     * @param steps 歩数, eg: 5
-     * @param block 敷くブロック, eg: Block.Cobblestone
-     */
-    //% block="向いている前方に敷き詰めながら高速直進 [歩数 %steps] [ブロック %block]"
-    //% weight=70
-    export function fastBuildPath(steps: number, block: Block): void {
-        for (let i = 0; i < steps; i++) {
-            let nextPos = getOffsetPosition(agent.getPosition(), 1, 0, 0);
-            agent.teleport(nextPos, agentHeading);
-            blocks.place(block, positions.add(nextPos, pos(0, -1, 0)));
-            loops.pause(10);
-        }
     }
 }
