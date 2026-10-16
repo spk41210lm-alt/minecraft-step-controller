@@ -1,9 +1,7 @@
 //% weight=100 color="#27AE60" icon="\uf04e" block="ステップ実行"
 namespace stepDebugger {
     let stepSignal = false;
-    let agentSpeedDelay = 50; // 高速時のウェイト（ミリ秒）
 
-    // チャットで "n" と打つと1ステップ進む
     player.onChat("n", function () {
         stepSignal = true;
     });
@@ -37,25 +35,62 @@ namespace stepDebugger {
     }
 
     /**
-     * エージェントを指定した歩数分、高速に前進させます
-     * @param steps 前進する歩数, eg: 1
+     * エージェントのアニメーションを待たずに高速移動させます
+     * @param steps 前進する歩数, eg: 5
      */
-    //% block="エージェントを高速に前に進める [歩数 %steps]"
+    //% block="エージェントを前に瞬間移動 [歩数 %steps]"
     //% weight=80
-    export function fastMoveForward(steps: number): void {
-        for (let i = 0; i < steps; i++) {
-            agent.move(SixDirection.Forward, 1);
-            loops.pause(agentSpeedDelay);
-        }
+    export function instantMoveForward(steps: number): void {
+        let targetPos = positions.add(
+            agent.getPosition(),
+            posCamera(0, 0, steps)
+        );
+        agent.teleport(targetPos, CompassDirection.North);
     }
 
     /**
-     * 高速実行時の動作間隔（ミリ秒）を設定します（標準は50ms）
-     * @param delay 動作間隔（ミリ秒）, eg: 50
+     * エージェントの足元・前などに瞬時にブロックを配置します（アニメーションなし）
+     * @param block 設置するブロック, eg: Block.Stone
+     * @param dir 設置方向, eg: SixDirection.Down
      */
-    //% block="エージェントの速度を設定 [間隔 %delay ミリ秒]"
+    //% block="エージェントの %dir に高速ブロック設置 %block"
+    //% weight=75
+    export function instantPlaceBlock(dir: SixDirection, block: Block): void {
+        let agentPos = agent.getPosition();
+        let targetPos: Position;
+
+        // 指定した方向の座標を算出
+        if (dir === SixDirection.Down) {
+            targetPos = positions.add(agentPos, pos(0, -1, 0));
+        } else if (dir === SixDirection.Up) {
+            targetPos = positions.add(agentPos, pos(0, 1, 0));
+        } else if (dir === SixDirection.Forward) {
+            targetPos = positions.add(agentPos, posCamera(0, 0, 1));
+        } else if (dir === SixDirection.Back) {
+            targetPos = positions.add(agentPos, posCamera(0, 0, -1));
+        } else if (dir === SixDirection.Left) {
+            targetPos = positions.add(agentPos, posCamera(-1, 0, 0));
+        } else {
+            targetPos = positions.add(agentPos, posCamera(1, 0, 0));
+        }
+
+        // 即時配置
+        blocks.place(block, targetPos);
+    }
+
+    /**
+     * 指定歩数進みながら足元に連続でブロックを高速設置（道作りなど）
+     * @param steps 長さ（ブロック数）, eg: 5
+     * @param block 敷くブロック, eg: Block.Cobblestone
+     */
+    //% block="足元にブロックを敷きながら高速直進 [歩数 %steps] [ブロック %block]"
     //% weight=70
-    export function setAgentSpeed(delay: number): void {
-        agentSpeedDelay = delay;
+    export function fastBuildPath(steps: number, block: Block): void {
+        for (let i = 0; i < steps; i++) {
+            let nextPos = positions.add(agent.getPosition(), posCamera(0, 0, 1));
+            agent.teleport(nextPos, CompassDirection.North);
+            blocks.place(block, positions.add(nextPos, pos(0, -1, 0)));
+            loops.pause(10); // 描画更新の最小ウェイト
+        }
     }
 }
